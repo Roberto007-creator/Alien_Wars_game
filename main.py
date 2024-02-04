@@ -32,9 +32,40 @@ def load_image(name, colorkey=None):
 class InfoTable(pygame.sprite.Sprite):
     def __init__(self, *group):
         super().__init__(*group)
+
         self.image = pygame.Surface([WIDTH, 50])
         self.rect = pygame.Rect(0, HEIGHT - 50, WIDTH, 50)
+
+        self.count_lives = 3
+        self.count_bullets = 5
+        self.kills = 0
+
+        self.draw_info()
+
+    def draw_info(self):
         pygame.draw.rect(self.image, (100, 100, 100), (0, 0, WIDTH, 50))
+
+        # рисуем сердечки
+        hurt = pygame.transform.scale(load_image('hurt.png'), (50, 50))
+        for i in range(self.count_lives):
+            self.image.blit(hurt, (50 + 50 * i, 0))
+
+        # рисуем количество пуль
+        bullet = pygame.transform.scale(load_image('bullet.png'), (50, 50))
+        for i in range(self.count_bullets):
+            self.image.blit(bullet, (WIDTH - 150 + 20 * i, 0))
+
+        # рисуем надпись "Kills"
+        font = pygame.font.Font(None, 80)
+        text_kills = font.render(f"Kills: {self.kills}", True, (0, 255, 0))
+        self.image.blit(text_kills, (320, 0))
+
+    # у класса особый метод update, требующий определенных аргументов, вызывать только в собственной группе!!!
+    def update(self, lives, bullets, kills):
+        self.count_lives = lives
+        self.count_bullets = bullets
+        self.kills = kills
+        self.draw_info()
 
 
 class Bullets(pygame.sprite.Sprite):
@@ -68,6 +99,7 @@ class SpaceShip(pygame.sprite.Sprite):
         self.speed = 5
         self.lives = 3
         self.bullets = 5
+        self.kills = 0
 
     def update(self, *args):
         k_left = pygame.key.get_pressed()[pygame.K_LEFT]
@@ -79,7 +111,13 @@ class SpaceShip(pygame.sprite.Sprite):
             self.rect = self.rect.move(self.speed, 0)
 
     def fire(self, *groups):
-        Bullets(*groups, x=self.rect.x + 60, y=self.rect.y, direction='UP')
+        if self.bullets:
+            self.bullets -= 1
+            Bullets(*groups, x=self.rect.x + 60, y=self.rect.y, direction='UP')
+
+    def add_bullet(self):
+        if self.bullets < 5:
+            self.bullets += 1
 
 
 def main():
@@ -89,22 +127,30 @@ def main():
 
     all_sprites = pygame.sprite.Group()
     player_group = pygame.sprite.Group()
+    info_table_group = pygame.sprite.Group()
     bullets_group = pygame.sprite.Group()
 
-    info_table = InfoTable(all_sprites)
+    InfoTable(info_table_group)
     player = SpaceShip(all_sprites, player_group)
+
+    ADDBULLETSEVENT = pygame.USEREVENT + 1
+    pygame.time.set_timer(ADDBULLETSEVENT, 1000)
 
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == ADDBULLETSEVENT:
+                player.add_bullet()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 player.fire(all_sprites, bullets_group)
 
         screen.blit(fon, (0, 0))
         all_sprites.draw(screen)
+        info_table_group.draw(screen)
         all_sprites.update()
+        info_table_group.update(player.lives, player.bullets, player.kills)
         pygame.display.flip()
         clock.tick(FPS)
 
